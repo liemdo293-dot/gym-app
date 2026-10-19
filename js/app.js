@@ -424,7 +424,7 @@ function rangHtml() {
     </header>
     <div class="noten-karte rang-gross stagger" style="--i:${i++}">
       <span class="rang-emblem">${rangAbzeichen(info.rang, 112)}</span>
-      <span class="rang-name">${esc(info.rang.name)}</span>
+      <span class="rang-name farbig" style="${rangTextStil(info.rang.stufe)}">${esc(info.rang.name)}</span>
       ${info.naechster ? `
         <span class="rang-ziel">Nächster Rang: <strong>${esc(info.naechster.name)}</strong></span>
         <span class="balken-spur gross"><span class="fortschritt-balken" data-wert="${info.fortschritt.toFixed(3)}"></span></span>
@@ -466,7 +466,7 @@ function rangHtml() {
           <div class="rang-zeile ${status}">
             ${rangAbzeichen(r, 36)}
             <span>
-              <span class="zeile-name">${esc(r.name)}</span>
+              <span class="zeile-name" style="${status === "gesperrt" ? "" : rangTextStil(r.stufe)}">${esc(r.name)}</span>
               <span class="zeile-info">${n === 0 ? "Start" : `${zahl(r.xp, 0)} XP · ${r.serie ? `${r.serie} Wo. Serie · ` : ""}${r.trainings} Trainings`}</span>
             </span>
             <span class="rang-status">${status === "erreicht" ? SYMBOL.haken : status === "aktuell" ? '<span class="marke">Du</span>' : ""}</span>
@@ -992,7 +992,7 @@ function ergebnisHtml() {
         <div class="aufstieg">
           <span class="aufstieg-emblem">${rangAbzeichen(nachher.rang, 120)}</span>
           <p class="timer-phase">Aufgestiegen!</p>
-          <h2 class="training-titel gross">${esc(nachher.rang.name)}</h2>
+          <h2 class="training-titel gross" style="${rangTextStil(nachher.rang.stufe)}">${esc(nachher.rang.name)}</h2>
         </div>` : `
         <p class="timer-phase">Training abgeschlossen</p>
         <h2 class="training-titel gross">Stark gemacht!</h2>`}

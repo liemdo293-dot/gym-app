@@ -482,22 +482,121 @@ function rangInfo(xp = xpGesamt(), stat = wochenStatistik(), anzahl = trainings(
   return { rang, index, naechster, fortschritt, fehlt, xp, stat, anzahl };
 }
 
-// Abzeichen: Form je Stufe, Füllung zeigt die Untereinteilung – alles in Schwarz/Weiß
+// ---------- Rang-Abzeichen im Gaming-Stil ----------
+// Jede Stufe hat ihre eigene Metallfarbe. Je höher der Rang, desto mehr Details:
+// Silber bekommt kleine Flügel, Gold einen Edelstein, ab Platin große Flügel,
+// Titan Zacken und einen Blitz, Legende Krone, Strahlen und schimmernde Farben.
+
+const RANG_FARBEN = {
+  neu: { hell: "#d1d1d6", mitte: "#8e8e93", dunkel: "#3a3a3c", leuchten: "rgba(142, 142, 147, 0.35)" },
+  bronze: { hell: "#f6c99b", mitte: "#c47a3a", dunkel: "#5e2c0e", leuchten: "rgba(205, 127, 50, 0.5)" },
+  silber: { hell: "#ffffff", mitte: "#b6c2d0", dunkel: "#4f5b6b", leuchten: "rgba(196, 210, 228, 0.55)" },
+  gold: { hell: "#fff3b0", mitte: "#f4c430", dunkel: "#8a5a00", leuchten: "rgba(255, 200, 50, 0.6)" },
+  platin: { hell: "#c4fff6", mitte: "#2ec4b6", dunkel: "#07545a", leuchten: "rgba(46, 196, 182, 0.6)" },
+  diamant: { hell: "#ece4ff", mitte: "#9b7bff", dunkel: "#2d1a8c", leuchten: "rgba(155, 123, 255, 0.65)" },
+  titan: { hell: "#ffc2c2", mitte: "#ef3e43", dunkel: "#5c0612", leuchten: "rgba(239, 62, 67, 0.65)" },
+  legende: { hell: "#fff6c9", mitte: "#ffb627", dunkel: "#5b2bd6", leuchten: "rgba(255, 182, 39, 0.8)" }
+};
+
+const ABZ_FORM = {
+  schild: "M50 10 L78 21 V47 C78 66 66 79 50 89 C34 79 22 66 22 47 V21 Z",
+  schildInnen: "M50 18 L71 26.5 V47 C71 61 62 71 50 79.5 C38 71 29 61 29 47 V26.5 Z",
+  sechseck: "M50 12 L80 29 V65 L50 82 L20 65 V29 Z",
+  sechseckInnen: "M50 20 L73 33 V61 L50 74 L27 61 V33 Z",
+  fluegelKlein: "M24 31 L7 26 L13 37 L5 41 L17 46 L12 52 L24 52 Z",
+  fluegelGross: "M24 25 L1 14 L8 28 L0 35 L11 41 L3 48 L15 53 L9 61 L24 60 Z",
+  edelstein: "M50 1 L58 10 L50 20 L42 10 Z",
+  krone: "M29 21 L32 5 L41 14 L50 0 L59 14 L68 5 L71 21 Z",
+  zacken: "M50 0 L56 11 L44 11 Z M10 33 L22 32 L19 43 Z M90 33 L78 32 L81 43 Z M50 99 L44 89 L56 89 Z",
+  blitz: "M54 30 L40 52 H50 L45 70 L61 45 H51 Z",
+  stern: "M50 33 L54.7 43.5 L66 44.6 L57.5 52.2 L60 63.5 L50 57.7 L40 63.5 L42.5 52.2 L34 44.6 L45.3 43.5 Z"
+};
+
+let abzeichenNummer = 0;
+
+function rangTextStil(stufe) {
+  const f = RANG_FARBEN[stufe] || RANG_FARBEN.neu;
+  const verlauf = stufe === "legende" ? "#fff6c9, #ffc94a 35%, #ff6fb5 70%, #7a5cff" : `${f.hell}, ${f.mitte}`;
+  return `background-image: linear-gradient(135deg, ${verlauf}); -webkit-background-clip: text; background-clip: text; color: transparent;`;
+}
+
 function rangAbzeichen(rang, groesse = 64) {
-  const formen = {
-    neu: '<circle cx="50" cy="50" r="34" class="abz-linie"/>',
-    bronze: '<circle cx="50" cy="50" r="38" class="abz-linie dick"/>',
-    silber: '<path d="M50 10 L84 22 V50 C84 70 68 84 50 92 C32 84 16 70 16 50 V22 Z" class="abz-linie dick"/>',
-    gold: '<path d="M50 8 L86 29 V71 L50 92 L14 71 V29 Z" class="abz-flaeche"/>',
-    platin: '<path d="M50 6 L61 37 L94 38 L68 58 L77 90 L50 71 L23 90 L32 58 L6 38 L39 37 Z" class="abz-flaeche"/>',
-    diamant: '<path d="M50 6 L90 40 L50 94 L10 40 Z M10 40 H90 M30 40 L50 94 L70 40 M30 40 L42 22 L50 40 L58 22 L70 40" class="abz-flaeche-linien"/>',
-    titan: '<path d="M50 6 L90 28 V72 L50 94 L10 72 V28 Z" class="abz-flaeche"/><path d="M50 22 L74 36 V64 L50 78 L26 64 V36 Z" class="abz-innen"/>',
-    legende: '<path d="M12 74 L18 30 L36 50 L50 18 L64 50 L82 30 L88 74 Z" class="abz-flaeche"/><rect x="12" y="78" width="76" height="10" rx="3" class="abz-flaeche"/>'
-  };
+  const stufe = rang.stufe;
+  const f = RANG_FARBEN[stufe];
+  const id = `abz${++abzeichenNummer}`;
   const roemisch = (rang.name.match(/ (I{1,3})$/) || [])[1] || "";
-  const textKlasse = ["gold", "platin", "diamant", "titan", "legende"].includes(rang.stufe) ? "abz-text invers" : "abz-text";
-  const text = roemisch ? `<text x="50" y="${rang.stufe === "platin" ? 60 : 58}" class="${textKlasse}">${roemisch}</text>` : rang.stufe === "neu" ? '<text x="50" y="58" class="abz-text">N</text>' : "";
-  return `<svg class="abzeichen" width="${groesse}" height="${groesse}" viewBox="0 0 100 100" aria-hidden="true">${formen[rang.stufe]}${rang.stufe === "diamant" || rang.stufe === "legende" || rang.stufe === "titan" ? "" : text}</svg>`;
+  const hoch = ["platin", "diamant", "titan", "legende"].includes(stufe);
+  const metall = `url(#${id}m)`;
+  const rand = stufe === "legende" ? "#3b1a8f" : f.dunkel;
+
+  // Farbverläufe: Metall außen, dunkle Fläche innen, Glanz oben
+  const metallStopps = stufe === "legende"
+    ? '<stop offset="0" stop-color="#fff6c9"/><stop offset="0.35" stop-color="#ffc94a"/><stop offset="0.7" stop-color="#ff6fb5"/><stop offset="1" stop-color="#5b3cff"/>'
+    : `<stop offset="0" stop-color="${f.hell}"/><stop offset="0.5" stop-color="${f.mitte}"/><stop offset="1" stop-color="${f.dunkel}"/>`;
+  const schimmer = stufe === "legende"
+    ? '<animateTransform attributeName="gradientTransform" type="rotate" values="0 0.5 0.5;360 0.5 0.5" dur="6s" repeatCount="indefinite"/>'
+    : "";
+  const defs = `
+    <defs>
+      <linearGradient id="${id}m" x1="0" y1="0" x2="0.35" y2="1">${metallStopps}${schimmer}</linearGradient>
+      <linearGradient id="${id}i" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${f.dunkel}"/><stop offset="1" stop-color="#08080c"/></linearGradient>
+      <linearGradient id="${id}g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff" stop-opacity="0.55"/><stop offset="0.6" stop-color="#ffffff" stop-opacity="0"/></linearGradient>
+      <radialGradient id="${id}a" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="${f.mitte}" stop-opacity="0.65"/><stop offset="1" stop-color="${f.mitte}" stop-opacity="0"/></radialGradient>
+    </defs>`;
+
+  const teile = [];
+
+  // Legende: Aura und langsam rotierende Strahlen hinter allem
+  if (stufe === "legende") {
+    teile.push(`<circle cx="50" cy="48" r="50" fill="url(#${id}a)"><animate attributeName="r" values="44;50;44" dur="3s" repeatCount="indefinite"/></circle>`);
+    const strahlen = Array.from({ length: 12 }, (_, i) => {
+      const winkel = (i * 30 * Math.PI) / 180;
+      const breite = 0.11;
+      const p = (w, r) => `${(50 + Math.cos(w) * r).toFixed(1)} ${(48 + Math.sin(w) * r).toFixed(1)}`;
+      return `M50 48 L${p(winkel - breite, 52)} L${p(winkel + breite, 52)} Z`;
+    }).join(" ");
+    teile.push(`<g opacity="0.55"><path d="${strahlen}" fill="${metall}"/><animateTransform attributeName="transform" type="rotate" values="0 50 48;360 50 48" dur="24s" repeatCount="indefinite"/></g>`);
+  }
+
+  // Flügel (links gezeichnet, rechts gespiegelt)
+  const fluegel = hoch ? ABZ_FORM.fluegelGross : ["silber", "gold"].includes(stufe) ? ABZ_FORM.fluegelKlein : null;
+  if (fluegel) {
+    const fluegelPfad = `<path d="${fluegel}" fill="${metall}" stroke="${rand}" stroke-width="1.6" stroke-linejoin="round"/>`;
+    teile.push(fluegelPfad, `<g transform="translate(100 0) scale(-1 1)">${fluegelPfad}</g>`);
+  }
+
+  // Zacken für Titan
+  if (stufe === "titan") teile.push(`<path d="${ABZ_FORM.zacken}" fill="${metall}" stroke="${rand}" stroke-width="1.4" stroke-linejoin="round"/>`);
+
+  // Grundform: Sechseck für Neuling, sonst Schild
+  const aussen = stufe === "neu" ? ABZ_FORM.sechseck : ABZ_FORM.schild;
+  const innen = stufe === "neu" ? ABZ_FORM.sechseckInnen : ABZ_FORM.schildInnen;
+  teile.push(`<path d="${aussen}" fill="${metall}" stroke="${rand}" stroke-width="2" stroke-linejoin="round"/>`);
+  teile.push(`<path d="${innen}" fill="url(#${id}i)" stroke="${f.hell}" stroke-opacity="0.5" stroke-width="1"/>`);
+  teile.push(`<path d="${innen}" fill="url(#${id}g)" opacity="0.5"/>`);
+
+  // Edelstein oben ab Gold, Krone für Legende
+  if (stufe === "legende") {
+    teile.push(`<path d="${ABZ_FORM.krone}" fill="${metall}" stroke="${rand}" stroke-width="1.6" stroke-linejoin="round"/>`);
+    teile.push('<circle cx="50" cy="13" r="2.6" fill="#ffffff"/><circle cx="36" cy="15" r="1.8" fill="#ffffff" opacity="0.85"/><circle cx="64" cy="15" r="1.8" fill="#ffffff" opacity="0.85"/>');
+  } else if (["gold", "platin", "diamant", "titan"].includes(stufe)) {
+    teile.push(`<path d="${ABZ_FORM.edelstein}" fill="${f.hell}" stroke="${rand}" stroke-width="1.4" stroke-linejoin="round"/>`);
+    teile.push(`<path d="M50 1 L58 10 L50 10 Z" fill="#ffffff" opacity="0.6"/>`);
+  }
+
+  // Mitte: römische Zahl, N für Neuling, Blitz für Titan, Stern für Legende
+  const textStil = `fill="#ffffff" stroke="${f.dunkel}" stroke-width="1.2" paint-order="stroke" font-family="Inter, -apple-system, 'Segoe UI', sans-serif" font-weight="800" text-anchor="middle"`;
+  if (stufe === "titan") {
+    teile.push(`<path d="${ABZ_FORM.blitz}" fill="${f.hell}" stroke="${f.dunkel}" stroke-width="1.2" stroke-linejoin="round"/>`);
+  } else if (stufe === "legende") {
+    // Stern pulsiert aus seiner Mitte heraus
+    teile.push(`<g transform="translate(50 48)"><g><path d="${ABZ_FORM.stern}" transform="translate(-50 -48)" fill="${metall}" stroke="#ffffff" stroke-width="1.2" stroke-linejoin="round"/><animateTransform attributeName="transform" type="scale" values="1;1.12;1" dur="2s" repeatCount="indefinite"/></g></g>`);
+  } else {
+    const zeichen = roemisch || (stufe === "neu" ? "N" : "");
+    if (zeichen) teile.push(`<text x="50" y="${stufe === "neu" ? 56 : 58}" font-size="${zeichen.length > 2 ? 19 : 23}" ${textStil}>${zeichen}</text>`);
+  }
+
+  return `<svg class="abzeichen stufe-${stufe}" style="--abz-leuchten: ${f.leuchten}" width="${groesse}" height="${groesse}" viewBox="0 0 100 100" aria-hidden="true">${defs}${teile.join("")}</svg>`;
 }
 
 // ---------- Coach ----------
