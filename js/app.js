@@ -249,7 +249,7 @@ function planHtml() {
       <h1>Trainingsplan</h1>
     </header>
     <div class="noten-karte plan-karte stagger" style="--i:${i++}">
-      <span class="plan-profil">${esc(ZIELE[pr.ziel])} · ${esc(ERFAHRUNG[pr.erfahrung])} · ${pr.tage}× pro Woche · ${pr.dauer} Min.</span>
+      <span class="plan-profil">${esc(ZIELE[pr.ziel])} · ${esc(ERFAHRUNG[pr.erfahrung])} · ${esc((SCHWIERIGKEIT[pr.schwierigkeit] || SCHWIERIGKEIT.vorsichtig).name)} · ${pr.tage}× pro Woche · ${pr.dauer} Min.</span>
       <span class="balken-spur"><span class="fortschritt-balken" data-wert="${(Math.min(woche, BLOCK_WOCHEN) / BLOCK_WOCHEN).toFixed(3)}"></span></span>
       <span class="hinweis-klein">${woche > BLOCK_WOCHEN ? "Dein Block ist vorbei – Zeit für frische Reize." : `Nach ${BLOCK_WOCHEN} Wochen schlage ich einen neuen Block vor. Gewichte steigen automatisch, wenn du alle Wiederholungen schaffst.`}</span>
     </div>`;
@@ -551,6 +551,19 @@ function einstellungenHtml() {
         ${segmentHtml("theme", [["dunkel", "Dunkel"], ["hell", "Hell"], ["auto", "Automatisch"]], e.theme, "data-einstellung")}
       </div>
 
+      <h2 class="abschnitt stagger" style="--i:2">Schwierigkeit</h2>
+      <div class="stagger" style="--i:2">
+        ${segmentHtml("schwierigkeit", Object.entries(SCHWIERIGKEIT).map(([w, s]) => [w, s.name]), pr.schwierigkeit || "vorsichtig", "data-schwierigkeit")}
+        <p class="hinweis">Wechselst du die Stufe, rechne ich alle deine Gewichte passend um.</p>
+        <span class="feld-titel">Alle Gewichte anpassen</span>
+        <div class="knopf-reihe gewichte-reihe">
+          <button class="knopf zweit drueckbar" data-aktion="gewichte" data-faktor="0.9">−10 %</button>
+          <button class="knopf zweit drueckbar" data-aktion="gewichte" data-faktor="1.1">+10 %</button>
+          <button class="knopf zweit drueckbar" data-aktion="gewichte" data-faktor="1.2">+20 %</button>
+        </div>
+        <p class="hinweis">Gilt für alle Übungen mit Gewicht. Gerundet auf die nächste Hantelstufe.</p>
+      </div>
+
       <h2 class="abschnitt stagger" style="--i:2">Pausen zwischen Sätzen</h2>
       <div class="stagger" style="--i:2">
         ${segmentHtml("pause", [["", "Auto"], [60, "1:00"], [90, "1:30"], [120, "2:00"], [180, "3:00"]], e.pause || "", "data-einstellung")}
@@ -562,6 +575,7 @@ function einstellungenHtml() {
         <div class="infozeile"><span>Name</span><span>${esc(pr.name || "–")}</span></div>
         <div class="infozeile"><span>Ziel</span><span>${esc(ZIELE[pr.ziel] || "–")}</span></div>
         <div class="infozeile"><span>Trainings pro Woche</span><span>${pr.tage || "–"}</span></div>
+        <div class="infozeile"><span>Schwierigkeit</span><span>${esc((SCHWIERIGKEIT[pr.schwierigkeit] || SCHWIERIGKEIT.vorsichtig).name)}</span></div>
         <div class="infozeile"><span>Körpergewicht</span><span>${pr.koerpergewicht ? `${pr.koerpergewicht} kg` : "–"}</span></div>
       </div>
       <button class="knopf breit zweit drueckbar stagger" style="--i:3" data-aktion="profil-bearbeiten">Profil & Plan ändern</button>
@@ -625,7 +639,7 @@ function tauschenOeffnen(einheitIndex, uebungIndex) {
 
 function startOeffnen(bearbeiten) {
   const pr = profil();
-  zustand.start = pr ? { ...pr } : { name: "", ziel: "muskel", erfahrung: "anfaenger", tage: 3, dauer: 60, koerpergewicht: "" };
+  zustand.start = pr ? { schwierigkeit: "vorsichtig", ...pr } : { name: "", ziel: "muskel", erfahrung: "anfaenger", schwierigkeit: "normal", tage: 3, dauer: 60, koerpergewicht: "" };
   const s = zustand.start;
   const element = $("#start");
   element.innerHTML = `
@@ -644,6 +658,10 @@ function startOeffnen(bearbeiten) {
 
       <span class="feld-titel">Erfahrung im Gym</span>
       ${segmentHtml("erfahrung", [["anfaenger", "Anfänger"], ["fortgeschritten", "Fortgeschritten"]], s.erfahrung, "data-start")}
+
+      <span class="feld-titel">Startgewichte</span>
+      ${segmentHtml("schwierigkeit", Object.entries(SCHWIERIGKEIT).map(([w, s]) => [w, s.name]), s.schwierigkeit, "data-start")}
+      <p class="hinweis start-hinweis">Unsicher? Nimm „Normal“. In den ersten Trainings steigen die Gewichte doppelt so schnell, bis sie passen.</p>
 
       <span class="feld-titel">Trainings pro Woche</span>
       ${segmentHtml("tage", [[2, "2×"], [3, "3×"], [4, "4×"], [5, "5×"]], s.tage, "data-start")}
@@ -680,7 +698,14 @@ function planErstellenAusStart() {
   s.koerpergewicht = gewicht;
   s.tage = Number(s.tage);
   s.dauer = Number(s.dauer);
-  speichern(SCHLUESSEL.profil, { ...s, erstellt: (profil() || {}).erstellt || new Date().toISOString() });
+
+  // Bestehendes Profil: geänderte Schwierigkeit rechnet die vorhandenen Gewichte um
+  const vorher = profil();
+  if (vorher && vorher.schwierigkeit !== s.schwierigkeit) {
+    gewichteSkalieren(schwierigkeitFaktor(s.schwierigkeit) / schwierigkeitFaktor(vorher.schwierigkeit));
+  }
+
+  speichern(SCHLUESSEL.profil, { ...s, erstellt: (vorher || {}).erstellt || new Date().toISOString() });
   planErstellen(s);
   startSchliessen();
   seiteSchliessen();
@@ -1154,6 +1179,11 @@ const AKTIONEN = {
     trainingSchliessen();
     zeigeAnsicht("heute");
   },
+  "gewichte": (k) => {
+    const faktor = Number(k.dataset.faktor);
+    gewichteSkalieren(faktor);
+    zeigeToast(`Alle Gewichte ${faktor > 1 ? "+" : "−"}${Math.round(Math.abs(faktor - 1) * 100)} %`);
+  },
   "backup-sichern": () => backupSichern(),
   "backup-waehlen": () => {
     const feld = $("#backup-datei");
@@ -1198,6 +1228,13 @@ document.addEventListener("click", (e) => {
     const wert = segmentWaehlen(einstellung);
     einstellungAendern(einstellung.dataset.einstellung, einstellung.dataset.einstellung === "pause" ? (wert ? Number(wert) : null) : wert);
     if (einstellung.dataset.einstellung === "theme") farbschemaAnwenden(true);
+    return;
+  }
+
+  const stufe = e.target.closest("[data-schwierigkeit]");
+  if (stufe) {
+    const verhaeltnis = schwierigkeitAendern(segmentWaehlen(stufe));
+    if (verhaeltnis !== 1) zeigeToast(`Gewichte umgerechnet: ${verhaeltnis > 1 ? "+" : "−"}${Math.round(Math.abs(verhaeltnis - 1) * 100)} %`);
     return;
   }
 

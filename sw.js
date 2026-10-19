@@ -6,7 +6,7 @@
 // Wichtig: Bei jeder neuen Version die Nummer in CACHE_NAME erhöhen.
 // ==========================================================
 
-const CACHE_NAME = "gym-v1";
+const CACHE_NAME = "gym-v2";
 
 const APP_DATEIEN = [
   "./",

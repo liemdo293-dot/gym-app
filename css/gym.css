@@ -1231,3 +1231,16 @@
     height: 140px;
   }
 }
+
+/* ---------- Schwierigkeit ---------- */
+.start-hinweis {
+  margin: 8px 4px 0;
+}
+
+.gewichte-reihe {
+  margin-top: 0;
+}
+
+.einstellungen .feld-titel {
+  margin-top: 18px;
+}

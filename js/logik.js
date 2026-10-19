@@ -21,6 +21,18 @@ const MONATE_KURZ = ["Jan.", "Feb.", "März", "Apr.", "Mai", "Juni", "Juli", "Au
 const ZIELE = { muskel: "Muskelaufbau", kraft: "Kraft", fitness: "Fitness" };
 const ERFAHRUNG = { anfaenger: "Anfänger", fortgeschritten: "Fortgeschritten" };
 const GEFUEHL = { leicht: "Leicht", gut: "Passt", schwer: "Schwer" };
+
+// Schwierigkeit: wie schwer die Startgewichte sind (Faktor auf den vorsichtigen Grundwert)
+const SCHWIERIGKEIT = {
+  vorsichtig: { name: "Vorsichtig", faktor: 1 },
+  normal: { name: "Normal", faktor: 1.25 },
+  fordernd: { name: "Fordernd", faktor: 1.5 },
+  hart: { name: "Hart", faktor: 1.75 }
+};
+
+function schwierigkeitFaktor(stufe) {
+  return (SCHWIERIGKEIT[stufe] || SCHWIERIGKEIT.vorsichtig).faktor;
+}
 const BLOCK_WOCHEN = 6;
 
 // ---------- Speicher ----------
@@ -138,8 +150,40 @@ function aufGewichtRunden(kg, schritt) {
 function startGewicht(id, p) {
   const u = UEBUNGEN[id];
   if (u.einheit !== "kg" || !u.startFaktor) return 0;
-  const faktor = p.erfahrung === "anfaenger" ? 0.75 : 1;
+  const faktor = (p.erfahrung === "anfaenger" ? 0.75 : 1) * schwierigkeitFaktor(p.schwierigkeit);
   return aufGewichtRunden((p.koerpergewicht || 70) * u.startFaktor * faktor, u.schritt);
+}
+
+// Alle Gewichte auf einmal ändern, z. B. 1.1 = +10 %
+function gewichteSkalieren(faktor) {
+  const stand = uebungsstand();
+  Object.entries(stand).forEach(([id, st]) => {
+    const u = UEBUNGEN[id];
+    if (!u || u.einheit !== "kg" || !st.gewicht) return;
+    st.gewicht = aufGewichtRunden(st.gewicht * faktor, u.schritt);
+  });
+  speichern(SCHLUESSEL.stand, stand);
+}
+
+// Schwierigkeit wechseln: Profil speichern und alle Gewichte im gleichen Verhältnis umrechnen
+function schwierigkeitAendern(neu) {
+  const p = profil();
+  if (!p || !SCHWIERIGKEIT[neu]) return 1;
+  const verhaeltnis = schwierigkeitFaktor(neu) / schwierigkeitFaktor(p.schwierigkeit);
+  const neuesProfil = { ...p, schwierigkeit: neu };
+  speichern(SCHLUESSEL.profil, neuesProfil);
+  if (verhaeltnis === 1) return 1;
+
+  // Noch nie trainierte Übungen: Startgewicht neu berechnen (kein Rundungs-Drift beim Hin- und Herschalten)
+  // Schon trainierte Übungen: im gleichen Verhältnis umrechnen
+  const stand = uebungsstand();
+  Object.entries(stand).forEach(([id, st]) => {
+    const u = UEBUNGEN[id];
+    if (!u || u.einheit !== "kg") return;
+    st.gewicht = st.verlauf && st.verlauf.length ? aufGewichtRunden(st.gewicht * verhaeltnis, u.schritt) : startGewicht(id, neuesProfil);
+  });
+  speichern(SCHLUESSEL.stand, stand);
+  return verhaeltnis;
 }
 
 function planEintrag(id, p) {
@@ -287,11 +331,15 @@ function trainingAuswerten(training) {
     const zuSchwer = saetze.filter((s) => s.gefuehl === "schwer").length > 1;
     const verfehlt = saetze.some((s) => s.wdh < z.wdhMin);
 
+    // Kennenlern-Phase: In den ersten 3 Trainings einer Übung doppelt so schnell steigern
+    const kennenlernen = st.verlauf.length <= 3;
+
     if (alleGeschafft && !zuSchwer) {
       st.fehlversuche = 0;
       if (u.einheit === "kg") {
-        st.gewicht = Math.round((st.gewicht + u.schritt) * 10) / 10;
-        meldungen.push({ id, text: `${u.name}: nächstes Mal ${zahl(st.gewicht)} kg (+${zahl(u.schritt)} kg)`, art: "hoch" });
+        const plus = u.schritt * (kennenlernen ? 2 : 1);
+        st.gewicht = Math.round((st.gewicht + plus) * 10) / 10;
+        meldungen.push({ id, text: `${u.name}: nächstes Mal ${zahl(st.gewicht)} kg (+${zahl(plus)} kg${kennenlernen ? ", Kennenlern-Phase" : ""})`, art: "hoch" });
       } else {
         st.bonus = (st.bonus || 0) + (u.einheit === "s" ? 10 : 2);
         meldungen.push({ id, text: `${u.name}: Ziel steigt um ${u.einheit === "s" ? "10 s" : "2 Wiederholungen"}`, art: "hoch" });
